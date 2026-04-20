@@ -5,10 +5,11 @@ import {
   Settings, 
   MessageSquare, 
   Activity, 
-  ShieldCheck, // ShieldSecret ko badal kar ShieldCheck kar diya
+  ShieldCheck, 
   Menu, 
   X,
-  Database
+  Database,
+  Globe // <--- Naya icon import kiya
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -17,7 +18,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const menuItems = [
     { name: 'Overview', icon: <LayoutDashboard size={20} />, href: '/dashboard' },
-    { name: 'Setup & Keys', icon: <ShieldCheck size={20} />, href: '/setup' }, // Yahan bhi change kiya
+    { name: 'Setup & Keys', icon: <ShieldCheck size={20} />, href: '/setup' },
+    { name: 'Ghost Browser', icon: <Globe size={20} />, href: '/browser' }, // <--- YE ADHBHUT LINE JODI GAYI HAI
     { name: 'Chat Logs', icon: <MessageSquare size={20} />, href: '/chats' },
     { name: 'System Status', icon: <Activity size={20} />, href: '/status' },
     { name: 'Database', icon: <Database size={20} />, href: '/database' },
@@ -53,7 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Link 
                   key={item.name} 
                   href={item.href}
-                  onClick={() => setIsMobileMenuOpen(false)} // Mobile par click karte hi menu close ho jaye
+                  onClick={() => setIsMobileMenuOpen(false)}
                   className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-white transition-all group"
                 >
                   <span className="group-hover:scale-110 transition-transform">{item.icon}</span>
