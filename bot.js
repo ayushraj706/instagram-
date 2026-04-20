@@ -16,7 +16,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 async function runBot() {
-  console.log("🚀 BASEKEY_GHOST_VAULT: Starting Deep Mirror for Specific IDs...");
+  console.log("🚀 GHOST_ENGINE: Targeted Sync Started...");
   const browser = await puppeteer.launch({ 
     headless: "new",
     args: ['--no-sandbox', '--disable-setuid-sandbox'] 
@@ -29,7 +29,7 @@ async function runBot() {
     const cookies = JSON.parse(process.env.INSTA_COOKIES);
     await page.setCookie(...cookies);
 
-    // 1. Tumhari requested IDs
+    // BASS YAHI 4 TARGETS
     const targetUsers = [
       "_anshu_2101", 
       "_cool_butterfly_.6284", 
@@ -38,69 +38,78 @@ async function runBot() {
     ];
 
     for (const user of targetUsers) {
-      console.log(`\n📂 Scraping @${user} (Private Access)`);
+      console.log(`\n📂 Mirroring Everything for: @${user}`);
+      
+      // 1. Profile Page par jana
       await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
       await new Promise(r => setTimeout(r, 5000));
 
-      // 2. Profile Picture (DP)
+      // 2. Profile Pic (DP)
       const dpUrl = await page.evaluate(() => {
         const img = document.querySelector('header img') || document.querySelector('img[alt*="profile picture"]');
         return img ? img.src : null;
       });
       if(dpUrl) await safeUpload(dpUrl, user, 'profile_pic');
 
-      // 3. Saved Stories (Highlights) - Following button ke niche wale
-      console.log(`  └─ Extracting Highlights (Saved Stories)...`);
-      const highlightUrls = await page.evaluate(() => {
-        // Highlights ke circles aksar images hote hain
-        const circles = Array.from(document.querySelectorAll('canvas')).map(c => c.closest('div')?.querySelector('img')?.src);
-        return circles.filter(src => src && src.includes('cdninstagram.com'));
+      // 3. Saved Stories (Highlights)
+      console.log(`  └─ Extracting Highlights...`);
+      const highlightMedia = await page.evaluate(() => {
+        const items = Array.from(document.querySelectorAll('canvas')).map(c => c.closest('div')?.querySelector('img')?.src);
+        return items.filter(src => src && src.includes('cdninstagram.com'));
       });
-      for (const hUrl of highlightUrls) await safeUpload(hUrl, user, 'highlights');
+      for (const hUrl of highlightMedia) await safeUpload(hUrl, user, 'highlights');
 
-      // 4. Posts (Auto-Scroll)
-      console.log(`  └─ Mirroring All Posts...`);
-      let postUrls = new Set();
-      for (let i = 0; i < 3; i++) { // Scroll limit as per requirement
-        const imgs = await page.evaluate(() => {
-          return Array.from(document.querySelectorAll('article img'))
-                      .map(img => img.src)
-                      .filter(src => src.includes('cdninstagram.com'));
+      // 4. All Posts & Reels (Deep Scroll)
+      console.log(`  └─ Scanning All Posts/Videos...`);
+      let mediaSet = new Set();
+      
+      for (let i = 0; i < 5; i++) { // Deep scroll logic
+        const found = await page.evaluate(() => {
+          const imgs = Array.from(document.querySelectorAll('article img')).map(el => el.src);
+          const vids = Array.from(document.querySelectorAll('article video')).map(el => el.src || el.querySelector('source')?.src);
+          return [...imgs, ...vids].filter(src => src && src.includes('cdninstagram.com'));
         });
-        imgs.forEach(url => postUrls.add(url));
+        found.forEach(item => mediaSet.add(item));
         await page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
         await new Promise(r => setTimeout(r, 2000));
       }
 
-      for (const pUrl of Array.from(postUrls)) {
-        await safeUpload(pUrl, user, 'posts');
+      for (const mUrl of Array.from(mediaSet)) {
+        const isVideo = mUrl.includes('.mp4') || mUrl.includes('video');
+        await safeUpload(mUrl, user, isVideo ? 'videos' : 'posts');
       }
-      
-      console.log(`✅ @${user} Data Organized in Cloudinary.`);
+
+      // 5. Active Stories (Agar koi laga rakhi ho)
+      await page.goto(`https://www.instagram.com/stories/${user}/`, { waitUntil: 'networkidle2' });
+      const storyMedia = await page.evaluate(() => {
+        const media = Array.from(document.querySelectorAll('img[srcset], video source')).map(el => el.src || el.srcset);
+        return media.filter(m => m && m.includes('cdninstagram'));
+      });
+      for (const sUrl of storyMedia) await safeUpload(sUrl, user, 'stories');
     }
 
   } catch (error) {
     console.error("❌ Fatal Error:", error.message);
   } finally {
     await browser.close();
+    console.log("🏁 All 4 Targets Processed.");
   }
 }
 
-// SAFE UPLOAD WITH DEDUPLICATION (Ek photo bar-bar change/repeat nahi hogi)
+// NO-REPEAT UPLOAD LOGIC
 async function safeUpload(url, username, category) {
   try {
-    // Unique ID based on URL filename (Instagram generates unique IDs for every media)
     const mediaId = url.split('?')[0].split('/').pop(); 
     const docId = `${username}_${mediaId}`;
 
     const docRef = db.collection("archives").doc(docId);
     const doc = await docRef.get();
 
-    // Check if already archived to prevent repetition
+    // Repeat check
     if (doc.exists) return; 
 
     const upload = await cloudinary.uploader.upload(url, {
-      folder: `insta_vault/${username}/${category}`, // Folder structure by User
+      folder: `insta_vault/${username}/${category}`,
       resource_type: "auto"
     });
 
@@ -108,13 +117,12 @@ async function safeUpload(url, username, category) {
       owner: username,
       url: upload.secure_url,
       type: category,
-      media_id: mediaId,
       time: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    console.log(`  ➕ New ${category} saved for ${username}`);
+    console.log(`  ✅ New ${category} saved: ${username}`);
   } catch (e) {
-    // Skip on error
+    // Skip error
   }
 }
 
