@@ -2,12 +2,11 @@ name: BaseKey Ghost Engine - Auto Gateway
 
 on:
   schedule:
-    - cron: '0 * * * *'      # Har ghante automatic chalega (Hourly Polling)
-  workflow_dispatch:          # Dashboard ke button ke liye (Manual Trigger)
-  repository_dispatch:        # Vercel API ke liye (Remote Trigger)
+    - cron: '0 * * * *'      
+  workflow_dispatch:          
+  repository_dispatch:        
     types: [start_ghost_automation]
 
-# Ek baar mein sirf ek hi bot chalne ka rule (Safety Lock)
 concurrency:
   group: ghost-sync-group
   cancel-in-progress: false
@@ -15,7 +14,7 @@ concurrency:
 jobs:
   automate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15       # Safety: 15 min se zyada chala toh band kar dega
+    timeout-minutes: 15       
 
     steps:
       - name: 📂 Checkout Repository
@@ -25,10 +24,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'        # Dependency caching for speed
+          # Cache hata diya kyunki package-lock.json missing hai
 
       - name: 🛠️ Install Puppeteer System Deps
-        # Puppeteer ko Linux par chalne ke liye ye sab chahiye
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -37,7 +35,7 @@ jobs:
             libu2f-udev libvulkan1
 
       - name: 📦 Install Project Packages
-        run: npm install
+        run: npm install puppeteer cloudinary firebase-admin
 
       - name: 👻 Run Ghost Sniper Bot
         run: node bot.js
