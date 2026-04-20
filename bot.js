@@ -1,5 +1,5 @@
 const puppeteer = require('puppeteer');
-const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder'); // Naya package
+const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');
 const cloudinary = require('cloudinary').v2;
 const admin = require('firebase-admin');
 const path = require('path');
@@ -19,23 +19,27 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 async function runBot() {
-  console.log("🚀 GHOST_ENGINE: Video Recording Mode Activated...");
+  console.log("🚀 GHOST_ENGINE: Sniper Mode V10 (Video Render Fix)...");
   
   const browser = await puppeteer.launch({ 
     headless: "new",
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'] 
+    args: [
+      '--no-sandbox', 
+      '--disable-setuid-sandbox', 
+      '--disable-dev-shm-usage', // Memory fix
+      '--disable-gpu',           // Blank video fix
+      '--disable-web-security'
+    ] 
   });
   
   const page = await browser.newPage();
   await page.setViewport({ width: 390, height: 844 });
   await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1');
 
-  // --- 🎥 VIDEO RECORDER SETUP ---
   const videoPath = path.join(__dirname, 'ghost_action.mp4');
   const recorder = new PuppeteerScreenRecorder(page, {
     followNewTab: true,
     fps: 15,
-    ffmpeg_Path: null, // Default system ffmpeg use karega
     videoFrame: { width: 390, height: 844 },
     aspectRatio: '9:16',
   });
@@ -45,77 +49,70 @@ async function runBot() {
     console.log("⏺️ Recording Started...");
 
     // 1. Initial Load
-    await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2' });
-    await new Promise(r => setTimeout(r, 8000));
+    console.log("🔑 Navigating to Login Page...");
+    await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2', timeout: 60000 });
+    await new Promise(r => setTimeout(r, 10000));
 
-    // 2. Account Check & Login
+    // 2. Account Entry Logic
     const targetUser = process.env.INSTA_USER || "ayush_raj6888";
-    
-    // Choose Account (if modal exists)
-    await page.evaluate((user) => {
-      const elements = Array.from(document.querySelectorAll('*'));
-      const target = elements.find(el => el.textContent.trim() === user);
-      if (target) {
-        const btn = target.closest('button') || target.closest('div[role="button"]') || target;
-        btn.click();
+    const targetPass = process.env.INSTA_PASS;
+
+    console.log(`👤 Processing Login for: ${targetUser}`);
+
+    await page.evaluate((user, pass) => {
+      // Choose account modal click (if present)
+      const modalBtn = Array.from(document.querySelectorAll('*')).find(el => el.textContent.trim() === user);
+      if (modalBtn) (modalBtn.closest('button') || modalBtn).click();
+
+      // Fill inputs directly for speed
+      const uField = document.querySelector('input[name="username"]');
+      const pField = document.querySelector('input[name="password"]');
+      if (uField && !uField.value) uField.value = user;
+      if (pField) {
+        pField.value = pass;
+        pField.type = "text"; // Video mein password verify karne ke liye unhide
       }
-    }, targetUser);
-    await new Promise(r => setTimeout(r, 5000));
-
-    // Fill Credentials
-    const userField = await page.$('input[name="username"]');
-    if (userField) {
-      const currentVal = await page.evaluate(el => el.value, userField);
-      if (!currentVal) await page.type('input[name="username"]', targetUser, { delay: 100 });
-    }
-
-    const passField = await page.$('input[name="password"]');
-    if (passField) {
-      await page.type('input[name="password"]', process.env.INSTA_PASS, { delay: 100 });
       
-      // Password Unhide (Verification ke liye)
-      await page.evaluate(() => {
-        const passInput = document.querySelector('input[name="password"]');
-        if (passInput) passInput.type = "text";
-      });
-      await new Promise(r => setTimeout(r, 3000));
-      
-      // Login Click
-      await page.evaluate(() => {
-        const btns = Array.from(document.querySelectorAll('button'));
-        const loginBtn = btns.find(b => b.textContent.includes('Log In') || b.type === 'submit');
-        if (loginBtn) loginBtn.click();
-      });
-    }
+      // Submit click
+      const sub = Array.from(document.querySelectorAll('button')).find(b => b.type === 'submit' || b.innerText.includes('Log'));
+      if (sub) sub.click();
+    }, targetUser, targetPass);
 
-    console.log("⏳ Processing Login... Recording in progress.");
-    await new Promise(r => setTimeout(r, 20000)); // Dashboard load hone ka wait
+    console.log("⏳ Waiting for Dashboard Redirect...");
+    await new Promise(r => setTimeout(r, 15000));
 
-    // 3. Targeting
+    // 3. Targeting & Scrapping
     const targets = ["_anshu_2101", "_cool_butterfly_.6284", "dee_pu3477", "ritu_singh785903"];
+    
     for (const user of targets) {
-      console.log(`📡 Scanning: @${user}`);
-      await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
-      await new Promise(r => setTimeout(r, 7000));
+      console.log(`📡 TARGETING: @${user}`);
+      await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2', timeout: 60000 });
+      await new Promise(r => setTimeout(r, 8000));
       
-      // Media Scrape logic (Pichle bot jaisa hi h)
       const media = await page.evaluate(() => {
-        const items = Array.from(document.querySelectorAll('img[srcset], article img, video, div._aagv img'))
-                           .map(el => el.src || el.srcset?.split(' ')[0] || el.querySelector('source')?.src)
-                           .filter(src => src && src.includes('cdninstagram.com'));
-        return [...new Set(items)];
+        const results = [];
+        const items = document.querySelectorAll('img[srcset], article img, video, div._aagv img');
+        items.forEach(el => {
+          const src = el.src || el.srcset?.split(' ')[0] || el.querySelector('source')?.src;
+          if (src && src.includes('cdninstagram.com')) results.push(src);
+        });
+        return [...new Set(results)];
       });
-      for (const mUrl of media) await safeUpload(mUrl, user, mUrl.includes('.mp4') ? 'videos' : 'posts');
+
+      console.log(`📊 @${user}: Found ${media.length} items.`); // Ye log dekhna zaroori h!
+
+      for (const mUrl of media) {
+        await safeUpload(mUrl, user, mUrl.includes('.mp4') ? 'videos' : 'posts');
+      }
     }
 
   } catch (error) {
-    console.error("❌ ERROR:", error.message);
+    console.error("❌ FATAL ERROR:", error.message);
   } finally {
     await recorder.stop();
     await browser.close();
-    console.log("⏹️ Recording Stopped. Uploading to Cloudinary...");
+    console.log("⏹️ Recording Stopped. Uploading...");
     
-    // --- ☁️ VIDEO UPLOAD TO CLOUDINARY ---
     if (fs.existsSync(videoPath)) {
       await cloudinary.uploader.upload(videoPath, { 
         resource_type: "video", 
@@ -134,10 +131,11 @@ async function safeUpload(url, username, category) {
     const docRef = db.collection("archives").doc(docId);
     const doc = await docRef.get();
     if (doc.exists) return; 
+
     const upload = await cloudinary.uploader.upload(url, { folder: `insta_vault/${username}/${category}`, resource_type: "auto" });
     await docRef.set({ owner: username, url: upload.secure_url, type: category, time: admin.firestore.FieldValue.serverTimestamp() });
-  } catch (e) {}
+    console.log(`      ✅ Saved media for @${username}`);
+  } catch (e) { console.log(`      ⚠️ Upload fail: ${e.message}`); }
 }
 
 runBot();
-                          
