@@ -12,7 +12,8 @@ import {
   Lock, 
   Key, 
   Activity,
-  ArrowRight
+  ArrowRight,
+  Zap // <--- Bas yeh ek word add karna hai
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
