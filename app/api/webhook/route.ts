@@ -1,35 +1,63 @@
 import { NextResponse } from 'next/server';
+import { db } from '@/lib/firebase';
+import { doc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 
-// 1. Meta Verification (GET Request)
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  
   const mode = searchParams.get('hub.mode');
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  // Yeh token wahi hona chahiye jo tum Vercel Env ya Meta Dashboard mein daloge
-  const MY_SECRET_TOKEN = process.env.INSTAGRAM_VERIFY_TOKEN || "basekey_secret_123";
-
-  if (mode === 'subscribe' && token === MY_SECRET_TOKEN) {
-    console.log('WEBHOOK_VERIFIED_SUCCESSFULLY');
+  if (mode === 'subscribe' && token === process.env.INSTAGRAM_VERIFY_TOKEN) {
     return new Response(challenge, { status: 200 });
   }
-
-  return new Response('Verification Failed: Token Mismatch', { status: 403 });
+  return new Response('Error', { status: 403 });
 }
 
-// 2. Receiving Messages (POST Request)
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    
-    // Yahan Instagram ke messages ka data aata hai
-    console.log('Incoming Instagram Data:', JSON.stringify(body, null, 2));
+    const entry = body.entry?.[0];
+    const messaging = entry?.messaging?.[0];
+    const senderId = messaging?.sender?.id;
 
-    // Abhi ke liye hum sirf Success return karenge
-    return NextResponse.json({ status: 'received' }, { status: 200 });
+    // 1. Live Status Update (Dashboard par green light ke liye)
+    await setDoc(doc(db, "system", "status"), {
+      last_active: serverTimestamp(),
+      connection: "active"
+    }, { merge: true });
+
+    // 2. Feature Detection & Handling
+    if (messaging) {
+      const logRef = collection(db, "automation_logs");
+
+      // --- FEATURE: Story Mentions ---
+      if (messaging.message?.reply_to?.story) {
+        await addDoc(logRef, { type: 'story_mention', senderId, data: messaging, time: serverTimestamp() });
+        // Yahan tum automatic "Thanks for mentioning!" bhej sakte ho
+      }
+
+      // --- FEATURE: Media (Images/Video) ---
+      else if (messaging.message?.attachments) {
+        await addDoc(logRef, { type: 'media_received', senderId, attachments: messaging.message.attachments, time: serverTimestamp() });
+      }
+
+      // --- FEATURE: Quick Replies / Buttons ---
+      else if (messaging.postback || messaging.message?.quick_reply) {
+        const payload = messaging.postback?.payload || messaging.message?.quick_reply?.payload;
+        await addDoc(logRef, { type: 'button_click', senderId, payload, time: serverTimestamp() });
+        // Payload ke basis par alag-alag automation trigger hogi
+      }
+
+      // --- FEATURE: Normal Text ---
+      else if (messaging.message?.text) {
+        await addDoc(logRef, { type: 'text_message', senderId, text: messaging.message.text, time: serverTimestamp() });
+      }
+    }
+
+    return NextResponse.json({ status: 'success' });
   } catch (error) {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    console.error("Webhook Error:", error);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
