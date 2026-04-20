@@ -2,9 +2,9 @@ name: BaseKey Ghost Engine - Auto Gateway
 
 on:
   schedule:
-    - cron: '0 * * * *'      
-  workflow_dispatch:          
-  repository_dispatch:        
+    - cron: '0 * * * *'      # Har ghante automatic chalega
+  workflow_dispatch:          # Manual button ke liye
+  repository_dispatch:        # Vercel Trigger ke liye
     types: [start_ghost_automation]
 
 concurrency:
@@ -24,9 +24,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # Cache hata diya kyunki package-lock.json missing hai
 
       - name: 🛠️ Install Puppeteer System Deps
+        # Puppeteer ko Linux par browser chalane ke liye ye libraries chahiye
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -40,7 +40,9 @@ jobs:
       - name: 👻 Run Ghost Sniper Bot
         run: node bot.js
         env:
-          INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
+          # Yahan Cookies wala secret hata diya h aur login details jodi h
+          INSTA_USER: ${{ secrets.INSTA_USER }}
+          INSTA_PASS: ${{ secrets.INSTA_PASS }}
           CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
