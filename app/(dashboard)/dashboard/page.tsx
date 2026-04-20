@@ -11,8 +11,16 @@ import {
   Smartphone, Hash, Globe, MousePointer2
 } from 'lucide-react';
 import { 
-  ComposedChart, Area, Bar, XAxis, YAxis, Tooltip, 
-  ResponsiveContainer, CartesianGrid, Legend
+  ComposedChart, 
+  Area, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  ResponsiveContainer, 
+  CartesianGrid, 
+  Legend,
+  Cell // <--- Bas ye ek word missing tha
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 
