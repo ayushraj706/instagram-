@@ -1,28 +1,33 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot, getCountFromServer } from 'firebase/firestore';
+import { 
+  collection, query, orderBy, limit, onSnapshot, 
+  getCountFromServer, doc, setDoc 
+} from 'firebase/firestore';
 import { 
   Zap, Power, BarChart3, MessageSquare, Download, 
-  ArrowUpRight, BrainCircuit, History, Maximize2,
-  TrendingUp, Activity, Smartphone, Hash
+  BrainCircuit, History, TrendingUp, Activity, 
+  Smartphone, Hash, Globe, MousePointer2
 } from 'lucide-react';
 import { 
   ComposedChart, Area, Bar, XAxis, YAxis, Tooltip, 
-  ResponsiveContainer, Cell, Line
+  ResponsiveContainer, CartesianGrid, Legend
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function TradingDashboard() {
+export default function TerminalDashboard() {
   const [status, setStatus] = useState<any>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const [msgCount, setMsgCount] = useState(0);
+  const [timeframe, setTimeframe] = useState('LIVE');
 
-  // 1. REAL DATA FETCHING: Message Count & Logs
+  // 1. REAL-TIME DATA ENGINE
   useEffect(() => {
-    onSnapshot(doc(db, "system", "status"), (d) => setStatus(d.data()));
+    // System Status (Power & AI Switch)
+    const unsubStatus = onSnapshot(doc(db, "system", "status"), (d) => setStatus(d.data()));
     
-    // Total Messages Count (Real from Firestore)
+    // Total Msg Count
     const getCounts = async () => {
       const coll = collection(db, "automation_logs");
       const snapshot = await getCountFromServer(coll);
@@ -30,90 +35,133 @@ export default function TradingDashboard() {
     };
     getCounts();
 
-    const q = query(collection(db, "automation_logs"), orderBy("time", "desc"), limit(10));
+    // Live Activity Logs
+    const q = query(collection(db, "automation_logs"), orderBy("time", "desc"), limit(8));
     const unsubLogs = onSnapshot(q, (snap) => {
       setLogs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    return () => unsubLogs();
+    return () => { unsubStatus(); unsubLogs(); };
   }, []);
 
-  // 2. TRADING CANDLE DATA (Lalu-Hariyali Logic)
-  // val: Current, open: Start, high: Peak, low: Bottom
+  const toggleStatus = async (key: string) => {
+    await setDoc(doc(db, "system", "status"), { [key]: !status?.[key] }, { merge: true });
+  };
+
+  // 2. TRADING DATA (Incoming vs Outgoing)
   const tradingData = [
-    { time: '14:00', open: 400, close: 600, high: 700, low: 350 },
-    { time: '14:10', open: 600, close: 500, high: 650, low: 450 }, // Lalu (Down)
-    { time: '14:20', open: 500, close: 900, high: 950, low: 480 }, // Hariyali (Up)
-    { time: '14:30', open: 900, close: 850, high: 920, low: 800 },
-    { time: '14:40', open: 850, close: 1200, high: 1300, low: 820 },
-    { time: '14:50', open: 1200, close: 1100, high: 1250, low: 1050 },
-    { time: '15:00', open: 1100, close: 1500, high: 1600, low: 1000 },
+    { time: '12:00', incoming: 400, ai_replied: 380, vol: 700 },
+    { time: '13:00', incoming: 600, ai_replied: 550, vol: 650 },
+    { time: '14:00', incoming: 900, ai_replied: 890, vol: 950 },
+    { time: '15:00', incoming: 700, ai_replied: 680, vol: 800 },
+    { time: '16:00', incoming: 1200, ai_replied: 1150, vol: 1300 },
+    { time: '17:00', incoming: 1500, ai_replied: 1480, vol: 1600 },
   ];
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4 pb-20 p-2 font-sans selection:bg-blue-500/30">
+    <div className="max-w-7xl mx-auto space-y-4 pb-20 p-2 font-mono selection:bg-blue-500/30 text-zinc-300">
       
-      {/* --- TOP HUD (TRADING TERMINAL STYLE) --- */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* --- TOP HUD (SYSTEM STATS) --- */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {[
-          { label: 'INSTAGRAM_TRAFFIC', val: msgCount, icon: <Activity size={14}/>, color: 'text-green-500' },
-          { label: 'AI_BOT_STATUS', val: status?.aiActive ? 'RUNNING' : 'PAUSED', icon: <BrainCircuit size={14}/>, color: status?.aiActive ? 'text-blue-500' : 'text-zinc-500' },
-          { label: 'SYSTEM_UPTIME', val: '99.9%', icon: <Zap size={14}/>, color: 'text-orange-500' },
-          { label: 'CLOUD_STORAGE', val: 'ACTIVE', icon: <Cloud size={14}/>, color: 'text-purple-500' },
+          { label: 'META_INBOUND', val: msgCount, color: 'text-green-500' },
+          { label: 'AI_LATENCY', val: '142ms', color: 'text-blue-500' },
+          { label: 'SRV_UPTIME', val: '99.98%', color: 'text-orange-500' },
+          { label: 'DATA_SYNC', val: 'STABLE', color: 'text-purple-500' },
         ].map((item, i) => (
-          <div key={i} className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl flex flex-col justify-between hover:border-zinc-700 transition-all">
-            <div className="flex items-center gap-2 mb-1">
-              <span className={item.color}>{item.icon}</span>
-              <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">{item.label}</span>
-            </div>
-            <h2 className={`text-xl font-black italic tracking-tighter ${item.color}`}>{item.val}</h2>
+          <div key={i} className="bg-zinc-950 border border-zinc-900 p-3 rounded-xl flex flex-col group hover:border-zinc-700 transition-all">
+            <span className="text-[8px] font-black text-zinc-600 mb-1 tracking-widest">{item.label}</span>
+            <h2 className={`text-lg font-black tracking-tighter ${item.color}`}>{item.val}</h2>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        
-        {/* --- MAIN TRADING CHART AREA --- */}
-        <div className="lg:col-span-9 bg-black border border-zinc-800 rounded-[30px] p-6 shadow-2xl relative overflow-hidden">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-               <div className="bg-blue-600 w-2 h-8 rounded-full animate-pulse" />
-               <div>
-                  <h3 className="text-white font-black text-lg italic tracking-tighter uppercase leading-none">Market Terminal</h3>
-                  <span className="text-[10px] text-zinc-500 font-bold uppercase">BaseKey Meta Streaming v2.0</span>
-               </div>
+      {/* --- MASTER TOGGLES --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="bg-zinc-950 border border-zinc-900 p-5 rounded-[25px] flex items-center justify-between shadow-2xl">
+          <div className="flex items-center gap-4">
+            <div className={`p-3 rounded-xl ${status?.enabled ? 'bg-blue-600 text-white animate-pulse shadow-[0_0_15px_rgba(37,99,235,0.5)]' : 'bg-zinc-900 text-zinc-600'}`}>
+              <Power size={20} />
             </div>
-            <div className="flex gap-2">
-               <span className="text-[10px] bg-zinc-900 px-3 py-1 rounded-full text-zinc-400 font-bold border border-zinc-800">CANDLESTICK_ENABLED</span>
-               <span className="text-[10px] bg-green-500/10 px-3 py-1 rounded-full text-green-500 font-bold border border-green-500/20">LIVE_DATA</span>
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-widest">Master Engine</h4>
+              <p className="text-[9px] font-bold text-zinc-500 uppercase">{status?.enabled ? 'Live & Routing' : 'Offline'}</p>
+            </div>
+          </div>
+          <button onClick={() => toggleStatus('enabled')} className={`w-14 h-7 rounded-full p-1 transition-all ${status?.enabled ? 'bg-blue-600' : 'bg-zinc-800'}`}>
+            <motion.div animate={{ x: status?.enabled ? 28 : 0 }} className="bg-white w-5 h-5 rounded-full shadow-lg" />
+          </button>
+        </div>
+
+        <div className="bg-zinc-950 border border-zinc-900 p-5 rounded-[25px] flex items-center justify-between shadow-2xl">
+          <div className="flex items-center gap-4">
+            <div className={`p-3 rounded-xl ${status?.aiActive ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.5)]' : 'bg-zinc-900 text-zinc-600'}`}>
+              <BrainCircuit size={20} />
+            </div>
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-widest">Gemini AI Pilot</h4>
+              <p className="text-[9px] font-bold text-zinc-500 uppercase">{status?.aiActive ? 'Autonomous' : 'Manual Control'}</p>
+            </div>
+          </div>
+          <button onClick={() => toggleStatus('aiActive')} className={`w-14 h-7 rounded-full p-1 transition-all ${status?.aiActive ? 'bg-purple-600' : 'bg-zinc-800'}`}>
+            <motion.div animate={{ x: status?.aiActive ? 28 : 0 }} className="bg-white w-5 h-5 rounded-full shadow-lg" />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+        
+        {/* --- ADVANCED TRADING CHART --- */}
+        <div className="lg:col-span-9 bg-black border border-zinc-900 rounded-[35px] p-6 relative overflow-hidden shadow-2xl">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-500 w-1 h-6 rounded-full" />
+              <h3 className="font-black text-sm uppercase tracking-tighter italic">Traffic_Terminal_v2</h3>
+            </div>
+            
+            <div className="flex bg-zinc-900/50 p-1 rounded-xl border border-zinc-800">
+              {['LIVE', '1D', '7D', '1Y'].map(t => (
+                <button 
+                  key={t} 
+                  onClick={() => setTimeframe(t)}
+                  className={`px-3 py-1 rounded-lg text-[9px] font-black transition-all ${timeframe === t ? 'bg-blue-600 text-white' : 'text-zinc-600 hover:text-zinc-300'}`}
+                >
+                  {t}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="h-[400px] w-full mt-4">
+          <div className="h-[400px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={tradingData}>
                 <defs>
-                  <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                  <linearGradient id="blueGlow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="1 5" vertical={false} stroke="#18181b" />
-                <XAxis dataKey="time" hide />
-                <YAxis hide domain={['dataMin - 100', 'dataMax + 100']} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#18181b" />
+                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#52525b'}} />
+                <YAxis orientation="right" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#52525b'}} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#000', border: '1px solid #333', borderRadius: '12px' }}
-                  cursor={{ stroke: '#555', strokeWidth: 1 }}
+                  contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px' }}
                 />
-                <Area type="monotone" dataKey="close" stroke="#3b82f6" fill="url(#glow)" strokeWidth={2} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} />
                 
-                {/* --- TRADING CANDLE LOGIC --- */}
-                <Bar dataKey="close" barSize={12} radius={2}>
+                {/* Outgoing/Replied (Area) */}
+                <Area type="monotone" name="AI Replied" dataKey="ai_replied" stroke="#8b5cf6" fill="url(#blueGlow)" strokeWidth={3} />
+                
+                {/* Incoming (Line) */}
+                <Area type="monotone" name="Incoming Msg" dataKey="incoming" stroke="#3b82f6" fill="transparent" strokeWidth={2} strokeDasharray="5 5" />
+                
+                {/* Trading Volume Bars (The Lalu-Hariyali logic) */}
+                <Bar dataKey="vol" name="Activity Vol" radius={[4, 4, 0, 0]} barSize={15}>
                   {tradingData.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
-                      fill={entry.close > entry.open ? '#22c55e' : '#ef4444'} // Green if Up, Red if Down
-                      className="drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]"
+                      fill={entry.incoming > 800 ? '#22c55e' : '#ef4444'} 
+                      fillOpacity={0.2}
                     />
                   ))}
                 </Bar>
@@ -121,40 +169,42 @@ export default function TradingDashboard() {
             </ResponsiveContainer>
           </div>
 
-          <div className="mt-4 flex justify-between border-t border-zinc-800 pt-4">
-             <div className="flex gap-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                <span className="flex items-center gap-1"><Smartphone size={10} /> Mobile Traffic: 84%</span>
-                <span className="flex items-center gap-1"><Hash size={10} /> Sessions: 1.2k</span>
+          <div className="mt-6 flex items-center justify-between border-t border-zinc-900 pt-4 text-[9px] font-black text-zinc-600">
+             <div className="flex gap-4">
+                <span className="flex items-center gap-1"><Globe size={10} /> REGION: ASIA_NORTH</span>
+                <span className="flex items-center gap-1 text-green-500 italic">● DATA_STREAM_STABLE</span>
              </div>
-             <div className="text-[10px] font-black text-blue-500 animate-pulse">● CONNECTION_ESTABLISHED</div>
+             <button className="flex items-center gap-1 hover:text-white transition-colors">
+                <Maximize2 size={10} /> FULLSCREEN_TERMINAL
+             </button>
           </div>
         </div>
 
-        {/* --- LIVE ORDER BOOK (LOGS) --- */}
-        <div className="lg:col-span-3 space-y-4">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[30px] h-full flex flex-col shadow-2xl">
-            <h3 className="text-white font-black italic text-xs uppercase mb-4 flex items-center gap-2">
-               <History size={14} className="text-blue-500" /> Transaction Logs
+        {/* --- LIVE ORDER LOGS --- */}
+        <div className="lg:col-span-3">
+          <div className="bg-zinc-950 border border-zinc-900 rounded-[35px] p-6 h-full shadow-2xl flex flex-col">
+            <h3 className="text-[10px] font-black uppercase mb-4 flex items-center gap-2 italic">
+               <History size={14} className="text-blue-500" /> System_Logs
             </h3>
-            <div className="flex-1 overflow-y-auto space-y-2 max-h-[450px] pr-2 scrollbar-hide">
+            <div className="flex-1 space-y-2 overflow-y-auto max-h-[460px] scrollbar-hide">
               {logs.map((log) => (
-                <div key={log.id} className="p-3 bg-black border border-zinc-800 rounded-xl flex flex-col gap-1 group hover:border-blue-500/50 transition-all">
-                  <div className="flex justify-between items-center">
-                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${log.type === 'ai_reply' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                      {log.type === 'ai_reply' ? 'EXECUTED' : 'INCOMING'}
+                <div key={log.id} className="p-3 bg-black border border-zinc-900 rounded-xl group hover:border-blue-500/50 transition-all">
+                  <div className="flex justify-between mb-1">
+                    <span className={`text-[7px] font-black px-2 py-0.5 rounded-full ${log.type === 'ai_reply' ? 'bg-purple-500/10 text-purple-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                      {log.type === 'ai_reply' ? 'AI_EXEC' : 'META_IN'}
                     </span>
-                    <span className="text-[8px] text-zinc-600 font-mono">{log.time?.toDate().toLocaleTimeString()}</span>
+                    <span className="text-[7px] text-zinc-700">{log.time?.toDate().toLocaleTimeString()}</span>
                   </div>
-                  <p className="text-[10px] text-zinc-400 font-medium truncate">{log.text || "MEDIA_FILE"}</p>
+                  <p className="text-[10px] text-zinc-500 truncate leading-tight">{log.text || "MEDIA_ATTACHMENT"}</p>
                 </div>
               ))}
             </div>
-            <button className="w-full mt-4 py-3 bg-blue-600 text-white font-black text-[10px] rounded-xl uppercase hover:bg-blue-500 transition-all active:scale-95">
-               Download PDF Report
+            <button className="w-full mt-4 py-4 bg-zinc-900 border border-zinc-800 text-white text-[9px] font-black rounded-2xl uppercase hover:bg-white hover:text-black transition-all">
+               <Download size={14} className="inline mr-2" /> Export_CSV
             </button>
           </div>
         </div>
       </div>
     </div>
   );
-        }
+      }
