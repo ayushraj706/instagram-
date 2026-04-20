@@ -1,19 +1,21 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { Zap, ShieldCheck, CloudUpload, ArrowLeft, RefreshCw, PlayCircle, User, Image as ImageIcon, Film } from 'lucide-react';
-import { db } from '@/lib/firebase'; // Apna firebase config path check kar lena
+// @ts-ignore
+import { db } from '@/lib/firebase'; 
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 
-const targetUsers = ["_anshu_2101", "_cool_butterfly_.6284", "dee_pu3477", "ritu_singh785903"];
+const targetUsers: string[] = ["_anshu_2101", "_cool_butterfly_.6284", "dee_pu3477", "ritu_singh785903"];
 
 export default function InstaGallery() {
-  const [selectedUser, setSelectedUser] = useState(targetUsers[0]);
-  const [media, setMedia] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  // Types specify kar diye hain <string>, <any[]>, etc.
+  const [selectedUser, setSelectedUser] = useState<string>(targetUsers[0]);
+  const [media, setMedia] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // 1. Firebase se Data Fetch karne ka logic
-  const fetchMedia = async (username) => {
+  // 'username: string' likhna zaroori tha
+  const fetchMedia = async (username: string) => {
     setLoading(true);
     try {
       const q = query(
@@ -35,7 +37,6 @@ export default function InstaGallery() {
     fetchMedia(selectedUser);
   }, [selectedUser]);
 
-  // 2. Bot Trigger Logic
   const triggerBulkSync = async () => {
     setIsSyncing(true);
     try {
@@ -60,9 +61,9 @@ export default function InstaGallery() {
         </button>
       </div>
 
-      {/* User Tabs (Horizontal Scroll) */}
+      {/* User Tabs */}
       <div className="flex gap-2 p-4 overflow-x-auto no-scrollbar bg-zinc-950/50 border-b border-zinc-900 shrink-0">
-        {targetUsers.map((user) => (
+        {targetUsers.map((user: string) => (
           <button
             key={user}
             onClick={() => setSelectedUser(user)}
@@ -86,14 +87,13 @@ export default function InstaGallery() {
           </div>
         ) : media.length > 0 ? (
           <div className="grid grid-cols-3 gap-1">
-            {media.map((item) => (
+            {media.map((item: any) => (
               <div key={item.id} className="aspect-square relative bg-zinc-900 group overflow-hidden rounded-sm">
                 {item.type === 'videos' ? (
                   <video src={item.url} className="w-full h-full object-cover" muted />
                 ) : (
                   <img src={item.url} alt="Vault" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
                 )}
-                {/* Type Icon */}
                 <div className="absolute top-1 right-1 p-1 bg-black/50 backdrop-blur-md rounded">
                   {item.type === 'videos' ? <Film size={10}/> : <ImageIcon size={10}/>}
                 </div>
@@ -110,11 +110,11 @@ export default function InstaGallery() {
         )}
       </div>
 
-      {/* Bottom Control Bar */}
+      {/* Footer */}
       <div className="h-14 bg-zinc-950 border-t border-zinc-900 flex items-center justify-around shrink-0">
         <button onClick={() => window.history.back()}><ArrowLeft size={20} className="text-zinc-600"/></button>
-        <div className="text-[10px] font-bold text-zinc-500">
-          {media.length} ITEMS ARCHIVED
+        <div className="text-[10px] font-bold text-zinc-500 uppercase">
+          {media.length} items
         </div>
         <ShieldCheck size={20} className="text-blue-900" />
       </div>
