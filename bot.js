@@ -22,99 +22,89 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 async function runBot() {
-  console.log("🚀 GHOST_ENGINE: Sniper Mode V12 (Ultra-Slow Stealth)...");
+  console.log("🚀 GHOST_ENGINE: V13 - Xvfb Virtual Display Mode Active...");
   
   const browser = await puppeteer.launch({ 
-    headless: "new",
+    headless: false, // Xvfb ke saath 'false' hi rakhna h taaki video sahi aaye
     args: [
       '--no-sandbox', 
-      '--disable-setuid-sandbox', 
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-blink-features=AutomationControlled'
+      '--disable-setuid-sandbox',
+      '--disable-blink-features=AutomationControlled',
+      '--start-maximized'
     ] 
   });
   
   const page = await browser.newPage();
-  await page.setViewport({ width: 390, height: 844 });
-  await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1');
+  // Virtual monitor size ke hisaab se viewport
+  await page.setViewport({ width: 1280, height: 1024 }); 
+  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36');
 
   const videoPath = path.join(__dirname, 'ghost_action.mp4');
   const recorder = new PuppeteerScreenRecorder(page, {
     followNewTab: true,
     fps: 15,
-    videoFrame: { width: 390, height: 844 },
-    aspectRatio: '9:16',
+    videoFrame: { width: 1280, height: 1024 },
+    aspectRatio: '16:9',
   });
 
   try {
     await recorder.start(videoPath);
-    console.log("⏺️ Recording Started...");
+    console.log("⏺️ Recording Started on Virtual Display...");
 
     // 1. Visit Login
-    console.log("🔑 Opening Login Page...");
+    console.log("🔑 Navigating to Instagram Login...");
     await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2', timeout: 60000 });
-    await new Promise(r => setTimeout(r, 5000)); // Page load hone ka wait
+    await new Promise(r => setTimeout(r, 7000));
 
-    // 2. Typing with Slow Delay (350ms per character)
+    // 2. Slow Typing Logic
     const targetUser = process.env.INSTA_USER || "ayush_raj6888";
     const targetPass = process.env.INSTA_PASS;
 
-    console.log("👤 Typing Username (Slow)...");
-    await page.type('input[name="username"]', targetUser, { delay: 350 });
-    await new Promise(r => setTimeout(r, 3000)); // Gap between fields
+    console.log(`👤 Entering Username: ${targetUser}`);
+    await page.type('input[name="username"]', targetUser, { delay: 250 });
+    await new Promise(r => setTimeout(r, 2000));
     
-    console.log("🔑 Typing Password (Slow)...");
-    await page.type('input[name="password"]', targetPass, { delay: 350 });
+    console.log("🔑 Entering Password...");
+    await page.type('input[name="password"]', targetPass, { delay: 250 });
+    
+    // Unhide password for video verification
+    await page.evaluate(() => {
+        const p = document.querySelector('input[name="password"]');
+        if (p) p.type = "text";
+    });
     await new Promise(r => setTimeout(r, 3000));
 
-    // Password Unhide (Verification ke liye zaroori h)
+    // 3. Click Login Button
+    console.log("🚀 Clicking Log In button...");
     await page.evaluate(() => {
-      const p = document.querySelector('input[name="password"]');
-      if (p) p.type = "text";
-    });
-    await new Promise(r => setTimeout(r, 2000));
-
-    // 3. AGGRESSIVE CLICK LOGIC
-    console.log("🚀 Attempting to Click Login Button...");
-    const loginClicked = await page.evaluate(() => {
         const btn = Array.from(document.querySelectorAll('button')).find(b => 
-            b.type === 'submit' || 
-            b.innerText.toLowerCase().includes('log') || 
-            b.textContent.toLowerCase().includes('log')
+            b.type === 'submit' || b.innerText.includes('Log In')
         );
         if (btn) {
-            btn.style.backgroundColor = "red"; // Video mein dikhega ki target hua
+            btn.style.border = "10px solid red"; // Video mein highlight hoga
             btn.click();
-            return true;
         }
-        return false;
     });
 
-    if (!loginClicked) {
-        console.log("⚠️ Button direct nahi mila, forcing submit...");
-        await page.keyboard.press('Enter');
-    }
-
-    console.log("⏳ Waiting for Dashboard (30 seconds)...");
-    await new Promise(r => setTimeout(r, 30000)); // Redirect ke liye zyada wait
+    console.log("⏳ Waiting 30s for Dashboard redirection...");
+    await new Promise(r => setTimeout(r, 30000));
 
     // 4. Verification Check
-    const loginSuccess = await page.evaluate(() => {
+    const isLoggedIn = await page.evaluate(() => {
         return !document.body.innerText.includes('Log In') && 
-               (!!document.querySelector('nav') || !!document.querySelector('a[href*="/direct/inbox/"]'));
+               (!!document.querySelector('nav') || !!document.querySelector('svg[aria-label="Home"]'));
     });
 
-    if (!loginSuccess) {
-      console.log("❌ LOGIN FAIL: Check the video if it asked for OTP or just refreshed.");
+    if (!isLoggedIn) {
+      console.log("❌ LOGIN FAILED: Page status check karo video mein.");
     } else {
-      console.log("✅ LOGIN SUCCESS! Starting targets...");
+      console.log("✅ LOGIN SUCCESS! Moving to targets...");
       
       const targets = ["_anshu_2101", "_cool_butterfly_.6284", "dee_pu3477", "ritu_singh785903"];
       for (const user of targets) {
         console.log(`📡 Scanning: @${user}`);
         await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
-        await new Promise(r => setTimeout(r, 10000)); // Profile load hone ka wait
+        await new Promise(r => setTimeout(r, 10000));
         
         const media = await page.evaluate(() => {
           const results = [];
@@ -126,24 +116,25 @@ async function runBot() {
           return [...new Set(results)];
         });
 
-        console.log(`📊 Found ${media.length} items for @${user}`);
+        console.log(`📊 @${user}: Found ${media.length} items.`);
         for (const mUrl of media) await safeUpload(mUrl, user, mUrl.includes('.mp4') ? 'videos' : 'posts');
       }
     }
 
   } catch (error) {
-    console.error("❌ ERROR:", error.message);
+    console.error("❌ FATAL ERROR:", error.message);
   } finally {
     await recorder.stop();
     await browser.close();
-    console.log("⏹️ Recording Finished. Uploading...");
+    console.log("⏹️ Recording Stopped. Sending to Cloudinary...");
     
     if (fs.existsSync(videoPath)) {
       await cloudinary.uploader.upload(videoPath, { 
         resource_type: "video", 
         folder: "debug/recordings",
-        public_id: `stealth_v12_${Date.now()}`
-      }).catch(e => console.log("Video Upload Error:", e.message));
+        public_id: `xvfb_stealth_${Date.now()}`
+      }).then(() => console.log("✅ Video Uploaded!"))
+        .catch(e => console.log("❌ Video Upload Error:", e.message));
     }
   }
 }
@@ -158,7 +149,7 @@ async function safeUpload(url, username, category) {
 
     const upload = await cloudinary.uploader.upload(url, { folder: `insta_vault/${username}/${category}`, resource_type: "auto" });
     await docRef.set({ owner: username, url: upload.secure_url, type: category, time: admin.firestore.FieldValue.serverTimestamp() });
-    console.log(`✅ Saved: ${category}`);
+    console.log(`      ✅ Saved: ${category}`);
   } catch (e) {}
 }
 
