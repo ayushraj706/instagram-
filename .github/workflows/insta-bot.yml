@@ -1,24 +1,40 @@
-name: BaseKey Insta Bot
+name: BaseKey Ghost Engine
 on:
   schedule:
-    - cron: '*/30 * * * *' # Har 30 min mein chalega
-  workflow_dispatch: # Manual chalu karne ke liye
+    - cron: '0 * * * *' # Har 1 ghante mein (Zyada baar mat chalana, account risk hota hai)
+  workflow_dispatch: # GitHub se manual chalu karne ke liye
+  repository_dispatch:
+    types: [start_ghost_automation] # Website se trigger karne ke liye
 
 jobs:
-  build:
+  automate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Use Node.js
-        uses: actions/setup-node@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install Puppeteer & Dependencies
+          cache: 'npm'
+
+      - name: Install Puppeteer Dependencies
+        # GitHub server par Chrome chalane ke liye ye zaroori libraries hain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2
+
+      - name: Install Project Dependencies
         run: npm install puppeteer cloudinary firebase-admin
-      - name: Run Automation Script
+
+      - name: Run Ghost Browser Bot
         run: node bot.js
         env:
+          # Inhe GitHub Settings > Secrets > Actions mein zaroor daalna
           INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
-          CLOUDINARY_URL: ${{ secrets.CLOUDINARY_URL }}
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
           
