@@ -2,14 +2,14 @@ const puppeteer = require('puppeteer');
 const cloudinary = require('cloudinary').v2;
 const admin = require('firebase-admin');
 
-// 1. Cloudinary Configuration
+// 1. Cloudinary Setup
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// 2. Firebase Admin Setup
+// 2. Firebase Setup
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_KEY))
@@ -18,7 +18,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 async function runBot() {
-  console.log("🚀 GHOST_ENGINE: Auto-Login Sniper Mode Activated...");
+  console.log("🚀 GHOST_ENGINE: Sniper Mode V4 (Smart Wait Active)...");
   
   const browser = await puppeteer.launch({ 
     headless: "new",
@@ -26,36 +26,42 @@ async function runBot() {
   });
   
   const page = await browser.newPage();
-  // iPhone Simulation for Mobile UI
   await page.setViewport({ width: 390, height: 844 });
   await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1');
 
   try {
-    // --- STEP 1: DIRECT LOGIN ---
+    // --- STEP 1: LOGIN WITH SMART WAIT ---
     console.log(`🔑 Logging in as: ${process.env.INSTA_USER}`);
-    await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2' });
-    await new Promise(r => setTimeout(r, 5000));
+    await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2', timeout: 60000 });
 
-    // Username aur Password type karna
+    try {
+      // Ab bot 20 seconds tak wait karega dabba dikhne ka
+      console.log("⏳ Waiting for login fields...");
+      await page.waitForSelector('input[name="username"]', { visible: true, timeout: 20000 });
+    } catch (e) {
+      console.log("❌ SELECTOR ERROR: Page slow hai ya Instagram ne block kiya. Taking screenshot...");
+      const debugImg = await page.screenshot();
+      await new Promise(res => cloudinary.uploader.upload_stream({ folder: "debug", public_id: "selector_fail" }, res).end(debugImg));
+      throw new Error("Login field nahi mila.");
+    }
+
+    // Type credentials with human-like delay
     await page.type('input[name="username"]', process.env.INSTA_USER, { delay: 150 });
     await page.type('input[name="password"]', process.env.INSTA_PASS, { delay: 150 });
     
-    // Login button click
     await Promise.all([
         page.click('button[type="submit"]'),
-        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 })
+        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }).catch(() => {})
     ]);
 
-    console.log("⏳ Checking Login Status...");
-    await new Promise(r => setTimeout(r, 10000)); // Buffer for redirects
+    console.log("⏳ Verifying Session...");
+    await new Promise(r => setTimeout(r, 10000)); 
 
-    // Login Verification
-    const loginCheck = await page.evaluate(() => !document.body.innerText.includes('Log In'));
-    if (!loginCheck) {
-        console.log("❌ LOGIN FAILED: Instagram security blocked the login.");
-        // Debug Screenshot if failed
+    const isLoggedIn = await page.evaluate(() => !document.body.innerText.includes('Log In'));
+    if (!isLoggedIn) {
+        console.log("❌ LOGIN FAILED: Account might be asking for OTP/Checkpoint.");
         const failImg = await page.screenshot();
-        await cloudinary.uploader.upload_stream({ folder: "debug", public_id: "login_failed" }, (e, r) => {}).end(failImg);
+        await new Promise(res => cloudinary.uploader.upload_stream({ folder: "debug", public_id: "login_blocked" }, res).end(failImg));
         return;
     }
     console.log("✅ LOGIN SUCCESS: Ghost is inside!");
@@ -68,7 +74,6 @@ async function runBot() {
       await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
       await new Promise(r => setTimeout(r, 6000));
 
-      // Media Scraper (Posts/Reels/Stories)
       const mediaFound = await page.evaluate(() => {
         const items = Array.from(document.querySelectorAll('img[srcset], article img, video, div._aagv img'))
                            .map(el => el.src || el.srcset?.split(' ')[0] || el.querySelector('source')?.src)
@@ -76,12 +81,12 @@ async function runBot() {
         return [...new Set(items)];
       });
 
-      console.log(`   📊 Found ${mediaFound.length} items for @${user}`);
+      console.log(`   📊 Found ${mediaFound.length} items.`);
       for (const mUrl of mediaFound) {
         await safeUpload(mUrl, user, mUrl.includes('.mp4') ? 'videos' : 'posts');
       }
 
-      // Special Highlights Snipe for dee_pu3477
+      // Highlights Snipe for dee_pu3477
       if (user === "dee_pu3477") {
           console.log(`   └─ Sniping Highlights...`);
           await page.goto(`https://www.instagram.com/stories/highlights/18059274617459516/`, { waitUntil: 'networkidle2' });
@@ -95,14 +100,13 @@ async function runBot() {
     }
 
   } catch (error) {
-    console.error("❌ Fatal Sniper Error:", error.message);
+    console.error("❌ Fatal Error:", error.message);
   } finally {
     await browser.close();
-    console.log("🏁 All targets cleared. Ghost Engine Standby.");
+    console.log("🏁 All targets cleared. Engine Standby.");
   }
 }
 
-// deduplication upload logic
 async function safeUpload(url, username, category) {
   try {
     const mediaId = url.split('?')[0].split('/').pop().substring(0, 45); 
