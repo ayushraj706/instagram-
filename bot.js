@@ -26,7 +26,7 @@ const MAX_WAIT_FOR_MEDIA = 40000; // 40 seconds max wait
 const POLL_INTERVAL = 800; // Check every 800ms for faster detection
 
 async function runBot() {
-  console.log("🚀 GHOST_ENGINE: V26 - MULTI-PATHWAY FALLBACK SYSTEM ACTIVATED...");
+  console.log("🚀 GHOST_ENGINE: V27 - PRIVACY POPUP BYPASS & MULTI-PATHWAY SYSTEM ACTIVATED...");
   const browser = await puppeteer.launch({ 
     headless: "new", 
     args: [
@@ -88,13 +88,13 @@ async function runBot() {
       // 2. Stories Scan
       console.log(`   📸 Checking Active Stories...`);
       await page.goto(`https://www.instagram.com/stories/${user}/`, { waitUntil: 'networkidle2' });
-      await sniperCapture(page, user, 'stories_v26', capturedMediaUrls);
+      await sniperCapture(page, user, 'stories_v27', capturedMediaUrls);
 
       // 3. Highlights Scan
       for (const hUrl of highlightLinks) {
           console.log(`   🔗 Entering Highlight: ${hUrl}`);
           await page.goto(hUrl, { waitUntil: 'networkidle2' });
-          await sniperCapture(page, user, 'highlights_v26', capturedMediaUrls);
+          await sniperCapture(page, user, 'highlights_v27', capturedMediaUrls);
       }
 
       // Stop recording after first target is completely scanned
@@ -150,20 +150,31 @@ async function sniperCapture(page, username, category, capturedMediaUrls) {
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
                 
                 // ========================================
-                // RASTA 1: AUTO-PLAY BYPASS (CRITICAL FOR HIGHLIGHTS)
+                // RASTA 1: AUTO-PLAY & PRIVACY POPUP BYPASS
                 // ========================================
                 try {
+                    // 1A. Bypass "View story" privacy warning
+                    const viewStoryBtn = Array.from(document.querySelectorAll('div[role="button"], button'))
+                        .find(el => el.innerText && el.innerText.includes('View story'));
+
+                    if (viewStoryBtn) {
+                        detectionLog.push(`[${elapsed}s] RASTA 1A: 'View story' privacy button detected, clicking...`);
+                        viewStoryBtn.click();
+                        await new Promise(r => setTimeout(r, 2500)); // Wait for story to actually load
+                    }
+
+                    // 1B. Normal Play button bypass
                     const playButton = document.querySelector('button[aria-label="Play"]') || 
                                      document.querySelector('svg[aria-label="Play"]')?.closest('button') ||
                                      document.querySelector('button svg[aria-label="Play"]')?.parentElement;
                     
                     if (playButton) {
-                        detectionLog.push(`[${elapsed}s] RASTA 1: Play button detected, clicking...`);
+                        detectionLog.push(`[${elapsed}s] RASTA 1B: Play button detected, clicking...`);
                         playButton.click();
                         await new Promise(r => setTimeout(r, 1500)); // Wait for video to start
                     }
                 } catch (e) {
-                    detectionLog.push(`[${elapsed}s] RASTA 1: Play button check failed: ${e.message}`);
+                    detectionLog.push(`[${elapsed}s] RASTA 1: Bypass check failed: ${e.message}`);
                 }
 
                 // ========================================
@@ -171,7 +182,6 @@ async function sniperCapture(page, username, category, capturedMediaUrls) {
                 // ========================================
                 try {
                     const videoElements = Array.from(document.querySelectorAll('video'));
-                    detectionLog.push(`[${elapsed}s] RASTA 2: Found ${videoElements.length} video elements`);
                     
                     for (let vidIndex = 0; vidIndex < videoElements.length; vidIndex++) {
                         const video = videoElements[vidIndex];
@@ -183,8 +193,6 @@ async function sniperCapture(page, username, category, capturedMediaUrls) {
                             video.querySelector('source')?.src,
                             video.getAttribute('src')
                         ].filter(Boolean);
-
-                        detectionLog.push(`[${elapsed}s] RASTA 2A: Video ${vidIndex} has ${possibleSources.length} sources`);
 
                         for (const src of possibleSources) {
                             // Method B: Blob detection and rejection
@@ -213,7 +221,6 @@ async function sniperCapture(page, username, category, capturedMediaUrls) {
                 // ========================================
                 try {
                     const imageElements = Array.from(document.querySelectorAll('img'));
-                    detectionLog.push(`[${elapsed}s] RASTA 3: Found ${imageElements.length} image elements`);
                     
                     // Loop backwards to catch foreground images first
                     for (let imgIndex = imageElements.length - 1; imgIndex >= 0; imgIndex--) {
@@ -227,14 +234,11 @@ async function sniperCapture(page, username, category, capturedMediaUrls) {
                             continue; // Skip small icons and profile pics
                         }
 
-                        detectionLog.push(`[${elapsed}s] RASTA 3A: Image ${imgIndex} size check passed (${rect.width}x${rect.height})`);
-
                         // Method B: Check src attribute
                         let imgSrc = img.src || img.getAttribute('src');
                         
                         // Skip data URIs
                         if (imgSrc && imgSrc.startsWith('data:image')) {
-                            detectionLog.push(`[${elapsed}s] RASTA 3B: Skipping data URI`);
                             continue;
                         }
 
@@ -369,7 +373,7 @@ async function safeSync(url, username, category, isVideo) {
                        url.split('?')[0].split('/').filter(p => p.length > 10).pop()?.substring(0, 45) ||
                        Date.now().toString();
         
-        const docId = `V26_${username}_${mediaId}`;
+        const docId = `V27_${username}_${mediaId}`;
         const docRef = db.collection("archives").doc(docId);
         
         const doc = await docRef.get();
@@ -380,7 +384,7 @@ async function safeSync(url, username, category, isVideo) {
 
         console.log(`      📤 Uploading to Cloudinary...`);
         const upload = await cloudinary.uploader.upload(url, { 
-            folder: `insta_vault_v26/${username}/${category}`, 
+            folder: `insta_vault_v27/${username}/${category}`, 
             resource_type: isVideo ? "video" : "image",
             timeout: 120000 // 2 minute timeout for large files
         });
@@ -392,7 +396,7 @@ async function safeSync(url, username, category, isVideo) {
             type: category, 
             is_video: isVideo, 
             time: admin.firestore.FieldValue.serverTimestamp(),
-            version: 'V26_MULTI_PATHWAY'
+            version: 'V27_PRIVACY_BYPASS'
         });
         
         console.log(`      ✅ [BULLSEYE] Archived successfully!`);
@@ -443,7 +447,7 @@ async function updateAIDesc(username, url, desc) {
                        url.split('?')[0].split('/').filter(p => p.length > 10).pop()?.substring(0, 45) ||
                        Date.now().toString();
         
-        await db.collection("archives").doc(`V26_${username}_${mediaId}`).update({ 
+        await db.collection("archives").doc(`V27_${username}_${mediaId}`).update({ 
             ai_report: desc,
             ai_analyzed_at: admin.firestore.FieldValue.serverTimestamp()
         });
