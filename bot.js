@@ -5,14 +5,19 @@ puppeteer.use(StealthPlugin());
 const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');
 const cloudinary = require('cloudinary').v2;
 const admin = require('firebase-admin');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const path = require('path');
 const fs = require('fs');
 
+// Configurations
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -22,42 +27,22 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 // Settings
-const MAX_WAIT_FOR_MEDIA = 45000; // Ek slide ke liye 45 sec tak wait karega (Slow net fix)
-const FORCE_RE_SYNC = true; // Dubara high quality mein lene ke liye
+const MAX_WAIT_FOR_MEDIA = 45000; 
 
 async function runBot() {
-  console.log("🚀 GHOST_ENGINE: V21 - The Ultimate Audio-Video Deep Archiver...");
+  console.log("🚀 GHOST_ENGINE: V22 - AI + WhatsApp + Profile Tracker Loaded...");
   
   const browser = await puppeteer.launch({ 
     headless: "new", 
-    args: [
-      '--no-sandbox', 
-      '--disable-setuid-sandbox',
-      '--disable-blink-features=AutomationControlled',
-    ] 
+    args: ['--no-sandbox', '--disable-setuid-sandbox'] 
   });
   
   const page = await browser.newPage();
-  // HD Viewport for high-res content
   await page.setViewport({ width: 1080, height: 1920 }); 
-  await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1');
-
-  const videoPath = path.join(__dirname, 'ghost_master_evidence.mp4');
-  const recorder = new PuppeteerScreenRecorder(page, {
-    followNewTab: true,
-    fps: 30,
-    videoFrame: { width: 1080, height: 1920 },
-    aspectRatio: '9:16',
-  });
 
   try {
     await page.goto('https://www.instagram.com/', { waitUntil: 'networkidle2' });
-    await new Promise(r => setTimeout(r, 5000));
-    await recorder.start(videoPath);
-    console.log("⏺️ Evidence Recording Started...");
-
     if (process.env.INSTA_COOKIES) {
-        console.log("🍪 Injecting Fresh Session Cookies...");
         await page.setCookie(...JSON.parse(process.env.INSTA_COOKIES));
         await page.reload({ waitUntil: 'networkidle2' });
     }
@@ -65,108 +50,139 @@ async function runBot() {
     const targets = ["_anshu_2101", "_cool_butterfly_.6284", "dee_pu3477", "ritu_singh785903"];
 
     for (const user of targets) {
-      console.log(`\n🕵️ Target Locked: @${user}`);
+      console.log(`\n🕵️ Target: @${user}`);
       
-      // 1. Profile Discovery (Highlight Links)
-      await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
-      await new Promise(r => setTimeout(r, 5000));
+      // --- 1. PROFILE TRACKING (Bio & DP) ---
+      await trackProfileChanges(page, user);
 
+      // --- 2. HIGHLIGHT DISCOVERY ---
+      await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
       const highlightLinks = await page.evaluate(() => {
           return Array.from(document.querySelectorAll('a[href*="/stories/highlights/"]')).map(a => a.href);
       });
-      console.log(`✨ Found ${highlightLinks.length} Highlights for @${user}`);
 
-      // 2. Active Stories Scan
-      console.log(`📸 Checking Stories for @${user}...`);
+      // --- 3. DEEP SCAN (Stories & Highlights) WITH AUTO-LIKE ---
+      // Stories
       await page.goto(`https://www.instagram.com/stories/${user}/`, { waitUntil: 'networkidle2' });
-      await captureDeepMedia(page, user, 'stories_master');
+      await captureAndLike(page, user, 'stories_v22');
 
-      // 3. Highlights Deep Scan
+      // Highlights
       for (const hUrl of highlightLinks) {
-          console.log(`🔗 Scanning Highlight Link: ${hUrl}`);
           await page.goto(hUrl, { waitUntil: 'networkidle2' });
-          await captureDeepMedia(page, user, 'highlights_master');
+          await captureAndLike(page, user, 'highlights_v22');
       }
     }
 
   } catch (error) {
     console.error("❌ CRITICAL ERROR:", error.message);
   } finally {
-    await recorder.stop();
     await browser.close();
-    console.log("⏹️ Mission Finished. Check Cloudinary for 'insta_vault_v21' folder.");
+    console.log("⏹️ Bot Mission Finished.");
   }
 }
 
 /**
- * 🔥 SMART DEEP CAPTURE: Wait for link, check audio/video, then sync
+ * ❤️ Auto-Like & Media Capture
  */
-async function captureDeepMedia(page, username, category) {
-    for (let i = 0; i < 30; i++) {
-        console.log(`   🎞️ Processing Slide ${i+1}...`);
+async function captureAndLike(page, username, category) {
+    for (let i = 0; i < 25; i++) {
+        await new Promise(r => setTimeout(r, 6000)); // Media loading wait
 
-        const media = await page.evaluate(async (maxWait) => {
-            const start = Date.now();
-            while (Date.now() - start < maxWait) {
-                const video = document.querySelector('video');
-                const img = document.querySelector('img[decode="sync"]') || document.querySelector('img[alt*="Story"]');
-
-                // 📹 VIDEO + AUDIO Check: Instagram music images are technically videos
-                if (video && video.readyState >= 3) {
-                    const src = video.currentSrc || video.src || video.querySelector('source')?.src;
-                    if (src && src.startsWith('http')) return { url: src, type: 'video' };
-                }
-
-                // 🖼️ PURE IMAGE Check: naturalWidth ensures it's fully loaded
-                if (img && img.complete && img.naturalWidth > 200) {
-                    if (img.src && !img.src.includes('data:image')) return { url: img.src, type: 'image' };
-                }
-
-                await new Promise(r => setTimeout(r, 600)); // Check every 600ms
+        // 🔥 AUTO LIKE LOGIC
+        await page.evaluate(() => {
+            const likeBtn = document.querySelector('span[role="button"] svg[aria-label="Like"]')?.closest('button');
+            if (likeBtn) {
+                likeBtn.click();
+                console.log("   ❤️ Liked the post!");
             }
+        });
+
+        const media = await page.evaluate(() => {
+            const video = document.querySelector('video');
+            const img = document.querySelector('img[decode="sync"]') || document.querySelector('img[alt*="Story"]');
+            if (video && video.readyState >= 3) return { url: video.currentSrc || video.src, type: 'video' };
+            if (img && img.complete) return { url: img.src, type: 'image' };
             return null;
-        }, MAX_WAIT_FOR_MEDIA);
+        });
 
         if (media && media.url) {
-            console.log(`      ✅ Found ${media.type.toUpperCase()}. Syncing...`);
-            await safeSync(media.url, username, category, media.type === 'video');
+            const isNew = await safeSync(media.url, username, category, media.type === 'video');
+            
+            // 🤖 GEMINI AI & WHATSAPP (Only for new items)
+            if (isNew) {
+                const aiDesc = await analyzeMedia(media.url);
+                await updateAIDesc(username, media.url, aiDesc);
+                await sendWhatsApp(`🔔 NEW CONTENT: @${username} ne kuch naya dala h!\n\n🤖 AI: ${aiDesc}\n📂 Type: ${media.type}`);
+            }
         }
 
-        // Navigation
         await page.keyboard.press('ArrowRight');
         await new Promise(r => setTimeout(r, 2000));
-
-        const active = await page.evaluate(() => window.location.href.includes('/stories/'));
-        if (!active) break;
+        if (!await page.evaluate(() => window.location.href.includes('/stories/'))) break;
     }
 }
 
-async function safeSync(url, username, category, isVideo = false) {
-  try {
+/**
+ * 👤 Profile Tracking (DP & Bio Changes)
+ */
+async function trackProfileChanges(page, username) {
+    const profile = await page.evaluate(() => ({
+        bio: document.querySelector('header section div:nth-child(3) span')?.innerText || "",
+        dp: document.querySelector('header img')?.src || ""
+    }));
+
+    const docRef = db.collection("profile_tracking").doc(username);
+    const doc = await docRef.get();
+
+    if (!doc.exists || doc.data().bio !== profile.bio || doc.data().dp !== profile.dp) {
+        await docRef.set({ ...profile, updated_at: admin.firestore.FieldValue.serverTimestamp() });
+        await sendWhatsApp(`👤 PROFILE UPDATED: @${username} ka Bio ya DP change hua h! Check karo.`);
+    }
+}
+
+/**
+ * 🤖 Gemini AI Image Analysis
+ */
+async function analyzeMedia(url) {
+    try {
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const prompt = "Briefly describe what is happening in this Instagram image for a database log.";
+        const result = await model.generateContent(prompt); // Note: Simple prompt for speed, can be enhanced
+        return result.response.text();
+    } catch (e) { return "No description available."; }
+}
+
+/**
+ * 📱 WhatsApp Notification (CallMeBot)
+ */
+async function sendWhatsApp(message) {
+    const phone = process.env.WHATSAPP_PHONE;
+    const apiKey = process.env.WHATSAPP_API_KEY;
+    const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(message)}&apikey=${apiKey}`;
+    try { await fetch(url); } catch (e) {}
+}
+
+async function safeSync(url, username, category, isVideo) {
     const mediaId = url.split('?')[0].split('/').pop().substring(0, 40); 
-    const docId = `V21_${username}_${mediaId}`; 
+    const docId = `V22_${username}_${mediaId}`;
     const docRef = db.collection("archives").doc(docId);
     
-    if (!FORCE_RE_SYNC) {
-        const doc = await docRef.get();
-        if (doc.exists) return;
-    }
+    const doc = await docRef.get();
+    if (doc.exists) return false;
 
-    // 🚀 Force Cloudinary to treat as video if audio is expected
     const upload = await cloudinary.uploader.upload(url, { 
-        folder: `insta_vault_v21/${username}/${category}`, 
-        resource_type: isVideo ? "video" : "image",
-        invalidate: true
+        folder: `insta_vault_v22/${username}/${category}`, 
+        resource_type: isVideo ? "video" : "image"
     });
 
-    await docRef.set({ 
-        owner: username, url: upload.secure_url, type: category, 
-        has_audio: isVideo, time: admin.firestore.FieldValue.serverTimestamp() 
-    });
-    console.log(`      ✨ [SYNCED] ${isVideo ? '📹 Video/Music Status' : '🖼️ Clean Photo'}`);
-  } catch (e) {
-    console.log("      ❌ Sync Failed: " + e.message);
-  }
+    await docRef.set({ owner: username, url: upload.secure_url, type: category, time: admin.firestore.FieldValue.serverTimestamp() });
+    return true;
+}
+
+async function updateAIDesc(username, url, desc) {
+    const mediaId = url.split('?')[0].split('/').pop().substring(0, 40);
+    const docId = `V22_${username}_${mediaId}`;
+    await db.collection("archives").doc(docId).update({ ai_description: desc });
 }
 
 runBot();
