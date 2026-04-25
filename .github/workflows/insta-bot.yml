@@ -1,8 +1,8 @@
-name: BaseKey Ghost Engine - Auto Gateway
+name: BaseKey Ghost Engine - API Gateway V29
 
 on:
   schedule:
-    - cron: '0 */6 * * *'      # Har 6 ghante mein apne aap chalega
+    - cron: '0 */6 * * *'      # Har 6 ghante mein chalega
   workflow_dispatch:          # Manual 'Run' button ke liye
   repository_dispatch:        
     types: [start_ghost_automation]
@@ -14,59 +14,35 @@ concurrency:
 jobs:
   automate:
     runs-on: ubuntu-latest
-    # 🔥 Deep Scan ke liye 60 minutes ka timeout fix rakha h
-    timeout-minutes: 60       
+    # 🔥 API bot fast hai, isliye 30 minutes bahut hain
+    timeout-minutes: 30       
 
     steps:
       - name: 📂 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🟢 Setup Node.js
-        uses: actions/setup-node@v4
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v4
         with:
-          node-version: '20'
-          # 🚫 Yahan se 'cache: npm' hata diya h taaki lock-file wala error na aaye
+          python-version: '3.10'
 
-      # --- 💾 SESSION CACHING ---
-      - name: 💾 Cache Browser Session
-        uses: actions/cache@v4
-        with:
-          path: ./user_data
-          key: ${{ runner.os }}-insta-session-v22
-          restore-keys: |
-            ${{ runner.os }}-insta-session-
-
-      - name: 🛠️ Install Xvfb, FFMPEG & Puppeteer Deps
+      - name: 📦 Install Python Packages
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            xvfb ffmpeg \
-            libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0 \
-            libasound2t64 libpangocairo-1.0-0 libxss1 libxshmfence1 \
-            libu2f-udev libvulkan1
+          pip install -r requirements.txt
 
-      - name: 📦 Install Project Packages
-        # Naye AI aur fetch packages yahan jodd diye hain
-        run: |
-          npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth \
-          cloudinary firebase-admin puppeteer-screen-recorder \
-          @google/generative-ai node-fetch
-
-      - name: 👻 Run Ghost Stealth Bot (With Xvfb Display)
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" node bot.js
+      - name: 👻 Run Ghost API Bot (V29)
+        run: python bot.py
         env:
-          INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
-          INSTA_USER: ${{ secrets.INSTA_USER }}
-          INSTA_PASS: ${{ secrets.INSTA_PASS }}
+          # Naya Session ID yahan se link hoga
+          IG_SESSIONID: ${{ secrets.IG_SESSIONID }}
           CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
-          # 🔥 Gemini Secret yahan hona bahut zaroori h
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: ✅ Status Check
         if: always()
         run: |
-          echo "Ghost V22 Deep AI Mission Finished!"
+          echo "Ghost V29 API Mission Finished!"
           
