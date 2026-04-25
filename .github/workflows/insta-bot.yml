@@ -13,8 +13,10 @@ concurrency:
 
 jobs:
   automate:
-    runs-on: ubuntu-latest
-    # 🔥 API bot fast hai, isliye 30 minutes bahut hain
+    # 🔥 TRICK 1: ubuntu-latest ki jagah macos-latest. 
+    # Mac cloud IPs ko Instagram jaldi block nahi karta.
+    runs-on: macos-latest
+    
     timeout-minutes: 30       
 
     steps:
@@ -24,7 +26,8 @@ jobs:
       - name: 🐍 Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          # 🔥 TRICK 2: Python 3.11 set kiya taaki pichli baar wali 'FutureWarning' na aaye.
+          python-version: '3.11'
 
       - name: 📦 Install Python Packages
         run: |
@@ -33,7 +36,6 @@ jobs:
       - name: 👻 Run Ghost API Bot (V29)
         run: python bot.py
         env:
-          # Naya Session ID yahan se link hoga
           IG_SESSIONID: ${{ secrets.IG_SESSIONID }}
           CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
